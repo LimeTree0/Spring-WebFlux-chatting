@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Application</title>
+    <style>
+        #chatContainer {
+            width: 1000px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        #messages {
+            list-style-type: none;
+            padding: 0;
+            max-height: 1000px;
+            overflow-y: scroll;
+        }
+        #messages li {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        #inputContainer {
+            display: flex;
+        }
+        #messageInput {
+            flex: 1;
+        }
+        #sendButton {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+<div id="chatContainer">
+    <ul id="messages"></ul>
+    <div id="inputContainer">
+        <input type="text" id="messageInput" placeholder="Type your message here..." />
+        <button id="sendButton" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+    document.getElementById('messageInput').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            console.log('Enter key pressed');
+            sendMessage()
+        }
+    });
+
+    async function fetchStreamData(prompt, assistantElement) {
+        const response = await fetch('/fetch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ model: 'llama2', prompt: prompt })
+        });
+
+        if (!response.ok) {
+            console.error('Network response was not ok');
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+
+        // 스트림 데이터를 읽기
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const jsonChunk = JSON.parse(chunk);
+            console.log(jsonChunk["response"]);
+            const responseText = jsonChunk["response"];
+            typeMessage(responseText, assistantElement);
+        }
+    }
+
+    function typeMessage(message, assistantElement) {
+        document.getElementById("messages").append(assistantElement);
+
+        const interval = setInterval(() => {
+            assistantElement.textContent += message;
+            clearInterval(interval);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        }, 10); // 타이핑 속도를 조절하려면 이 값을 변경하세요 (밀리초 단위)
+    }
+
+    function sendMessage() {
+        const messageInput = document.getElementById("messageInput");
+        const message = messageInput.value.trim();
+        if (message === "") return;
+
+        // 채팅창에 사용자 메시지 추가
+        const userMessageElement = document.createElement("li");
+        userMessageElement.textContent = "You: " + message;
+        document.getElementById("messages").append(userMessageElement);
+
+        const assistantElement = document.createElement("li");
+        assistantElement.textContent = "Assistant: ";
+        document.getElementById("messages").append(assistantElement);
+
+        // 서버에 메시지 전송
+        fetchStreamData(message, assistantElement);
+
+        // 입력창 비우기
+        messageInput.value = "";
+    }
+</script>
+</body>
+</html>
